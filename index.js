@@ -1,367 +1,131 @@
-async function drawBars() {
+let url = 'https://raw.githubusercontent.com/freeCodeCamp/ProjectReferenceData/master/GDP-data.json'
+let req = new XMLHttpRequest()
+
+let data
+let values = []
 
 
 
+let width = 800;
+let height = 600;
+let margin = 45;
+
+let svg = d3.select("body").append("svg")
+    .attr("class", "axis")
+    .attr("width", width)
+    .attr("height", height)
 
 
-    // 1. Access data
+const xAxisLength = width - 2 * margin;
+const yAxisLength = height - 2 * margin;
 
-    let dataset = await d3.csv("./../data.csv")
+req.open('GET', url, true)
+req.onload = () => {
+    data = JSON.parse(req.responseText)
+    values = data.data
+    console.log(values);
 
-    const summaryAccessor = d => d.Summary
-    const actualHoursAccessor = d => +d.HoursActual
-    const developerHoursAccessor = d => +d.DeveloperHoursActual
+    let xMin = d3.min(values, d => d[0]);
+    let xMax = d3.max(values, d => d[0]);
+    let yMin = d3.min(values, d => d[1]);
+    let yMax = d3.max(values, d => d[1]);
 
-    // Only use the first estimate per task (with highest actual hours)
-    let usedTasks = {}
-    dataset = dataset.filter(d => {
-        const hours = actualHoursAccessor(d)
-        if (usedTasks[summaryAccessor(d)]) {
-            const hasHigherValue = hours > usedTasks[summaryAccessor(d)]
-            if (!hasHigherValue) return false
-        }
-        usedTasks[summaryAccessor(d)] = hours
-        return actualHoursAccessor(d) > 10
-    })
-
-    const diffAccessor = d => +d.HoursEstimate - actualHoursAccessor(d)
-    dataset = dataset.filter(d => (
-        diffAccessor(d) >= -50 &&
-        diffAccessor(d) <= 50
-    ))
-    const yAccessor = d => d.length
-
-    // 2. Create chart dimensions
-
-    const width = 600
-    let dimensions = {
-        width: width,
-        height: width * 0.5,
-        margin: {
-            top: 35,
-            right: 10,
-            bottom: 50,
-            left: 50,
-        },
-    }
-    dimensions.boundedWidth = dimensions.width -
-        dimensions.margin.left -
-        dimensions.margin.right
-    dimensions.boundedHeight = dimensions.height -
-        dimensions.margin.top -
-        dimensions.margin.bottom
-
-    // 3. Draw canvas
-
-    const wrapper = d3.select("#wrapper")
-        .append("svg")
-        .attr("width", dimensions.width)
-        .attr("height", dimensions.height)
-
-    const bounds = wrapper.append("g")
-        .style("transform", `translate(${
-              dimensions.margin.left
-            }px, ${
-              dimensions.margin.top
-            }px)`)
-
-    const background = bounds.append("g")
-
-    // init static elements
-    bounds.append("g")
-        .attr("class", "bins")
-    bounds.append("line")
-        .attr("class", "mean")
-    bounds.append("g")
-        .attr("class", "x-axis")
-        .style("transform", `translateY(${
-              dimensions.boundedHeight
-            }px)`)
-        .append("text")
-        .attr("class", "x-axis-label")
-
-    // 4. Create scales
-
-    const xScale = d3.scaleLinear()
-        .domain(d3.extent(dataset, diffAccessor))
-        .range([0, dimensions.boundedWidth])
-        .nice()
-
-    const binsGenerator = d3.bin()
-        .domain(xScale.domain())
-        .value(diffAccessor)
-        .thresholds(30)
-
-    const bins = binsGenerator(dataset)
+    var xScale = d3.scaleTime()
+        .domain([new Date(xMin), new Date(xMax)])
+        .range([0, xAxisLength])
 
     const yScale = d3.scaleLinear()
-        .domain([0, d3.max(bins, yAccessor)])
-        .range([dimensions.boundedHeight, 0])
-        .nice()
+        .domain([yMax, 0])
+        .range([0, yAxisLength]);
 
-    // 5. Draw data
+    let xAxis = d3.axisBottom(xScale);
+    let yAxis = d3.axisLeft(yScale);
 
-    const barPadding = 1.5
+    svg.append("g")
+        .attr('id', 'x-axis')
+        .attr("class", "x-axis")
+        .attr("transform",
+            "translate(" + margin + "," + (height - margin) + ")")
+        .call(xAxis);
 
-    let binGroups = bounds.select(".bins")
-        .selectAll(".bin")
-        .data(bins)
+    svg.append("g")
+        .attr('id', 'y-axis')
+        .attr("class", "y-axis")
+        .attr("transform",
+            "translate(" + margin + "," + margin + ")")
+        .call(yAxis);
 
-    binGroups.exit()
-        .remove()
+    const widthBar = xAxisLength / values.length;
 
-    const newBinGroups = binGroups.enter().append("g")
-        .attr("class", "bin")
+    const tooltip = d3.select('body')
+        .append('div')
+        .attr('id', 'tooltip')
+        .style("visibility", "hidden")
 
-    newBinGroups.append("rect")
+    var g = svg.append("g")
+        .attr("class", "body")
+        .attr("transform",
+            "translate(" + margin + ", 0 )");
 
-    // update binGroups to include new points
-    binGroups = newBinGroups.merge(binGroups)
+    g.selectAll("rect.bar")
+        .data(values)
+        .enter()
+        .append("rect")
+        .attr("class", "bar")
+        .attr('x', d => xScale(new Date(d[0])))
+        .attr('y', (d) => {
+            return (yScale(d[1]) + margin)
+        })
+        .attr('width', widthBar)
+        .attr("height", (d) => yAxisLength - yScale(d[1]))
+        .attr('data-date', d => d[0])
+        .attr('data-gdp', d => d[1])
+        .on("mouseover", function (e, d) {
+            tooltip.style("visibility", "visible")
+                .style("left", e.pageX + 10 + "px")
+                .style("top", e.pageY - 80 + "px")
+                .attr("data-date", d[0])
+                .html(d[0] + "</br>" + d[1] + " Billion USD");
 
-    const barRects = binGroups.select("rect")
-        .attr("x", d => xScale(d.x0) + barPadding)
-        .attr("y", d => yScale(yAccessor(d)))
-        .attr("height", d => (
-            dimensions.boundedHeight - yScale(yAccessor(d))
-        ))
-        .attr("width", d => d3.max([
-            0,
-            xScale(d.x1) - xScale(d.x0) - barPadding
-        ]))
+        })
+        .on("mousemove", function () {
+            tooltip.style("left", event.pageX + 10 + "px")
 
-    const mean = d3.mean(dataset, diffAccessor)
+        })
+        .on("mouseout", function () {
+            tooltip.style("visibility", "hidden")
+        })
 
-    const meanLine = bounds.selectAll(".mean")
-        .attr("x1", xScale(mean))
-        .attr("x2", xScale(mean))
-        .attr("y1", -20)
-        .attr("y2", dimensions.boundedHeight)
+    g.append("text")
+        .attr('id', 'title')
+        .attr("x", (width / 2 - 30))
+        .attr("y", margin + 10)
+        .attr("text-anchor", "middle")
+        .style("font-size", "22px")
+        .text("United States GDP");
 
-    const meanLabel = bounds.append("text")
-        .attr("class", "mean-label")
-        .attr("x", xScale(mean))
-        .attr("y", -25)
-        .text("mean")
+    g.append('text')
+        .attr('x', width / 2)
+        .attr('y', height - 10)
+        .attr('class', 'label')
+        .text('Date');
 
-    // 6. Draw peripherals
+    g.append("text")
+        .attr("y", margin - 5)
+        .attr("x", -height / 2)
+        .attr("transform", "rotate(-90)")
+        .attr("class", "label")
+        .text("GDP [Billion USD]");
 
-    const xAxisGenerator = d3.axisBottom()
-        .scale(xScale)
 
-    const xAxis = bounds.select(".x-axis")
-        .call(xAxisGenerator)
 
-    const xAxisLabel = xAxis.select(".x-axis-label")
-        .attr("x", dimensions.boundedWidth / 2)
-        .attr("y", dimensions.margin.bottom - 10)
-        .text("Hours over-estimated")
 
-    const backgroundLeft = background.append("rect")
-        .attr("class", "background left-side-background")
-        .attr("y", -20)
-        .attr("width", dimensions.boundedWidth / 2)
-        .attr("height", dimensions.boundedHeight + 20)
 
-    const backgroundRight = background.append("rect")
-        .attr("class", "background right-side-background")
-        .attr("x", dimensions.boundedWidth / 2 + 1)
-        .attr("y", -20)
-        .attr("width", dimensions.boundedWidth / 2 - 1)
-        .attr("height", dimensions.boundedHeight + 20)
 
-    const leftSideLabel = background.append("text")
-        .attr("class", "label left-side-label")
-        .attr("x", 10)
-        .attr("y", 0)
-        .text("Under-estimated")
 
-    const rightSideLabel = background.append("text")
-        .attr("class", "label right-side-label")
-        .attr("x", dimensions.boundedWidth - 10)
-        .attr("y", 0)
-        .text("Over-estimated")
 
-    // 7. Set up interactions
+
 
 
 }
-drawBars()
-
-const summaryAccessor = d => d.Summary
-const actualHoursAccessor = d => +d.HoursActual
-const developerHoursAccessor = d => +d.DeveloperHoursActual
-
-// Only use the first estimate per task (with highest actual hours)
-let usedTasks = {}
-dataset = dataset.filter(d => {
-    const hours = actualHoursAccessor(d)
-    if (usedTasks[summaryAccessor(d)]) {
-        const hasHigherValue = hours > usedTasks[summaryAccessor(d)]
-        if (!hasHigherValue) return false
-    }
-    usedTasks[summaryAccessor(d)] = hours
-    return actualHoursAccessor(d) > 10
-})
-
-const diffAccessor = d => +d.HoursEstimate - actualHoursAccessor(d)
-dataset = dataset.filter(d => (
-    diffAccessor(d) >= -50 &&
-    diffAccessor(d) <= 50
-))
-const yAccessor = d => d.length
-
-// 2. Create chart dimensions
-
-const width = 600
-let dimensions = {
-    width: width,
-    height: width * 0.5,
-    margin: {
-        top: 35,
-        right: 10,
-        bottom: 50,
-        left: 50,
-    },
-}
-dimensions.boundedWidth = dimensions.width -
-    dimensions.margin.left -
-    dimensions.margin.right
-dimensions.boundedHeight = dimensions.height -
-    dimensions.margin.top -
-    dimensions.margin.bottom
-
-// 3. Draw canvas
-
-const wrapper = d3.select("#wrapper")
-    .append("svg")
-    .attr("width", dimensions.width)
-    .attr("height", dimensions.height)
-
-const bounds = wrapper.append("g")
-    .style("transform", `translate(${
-          dimensions.margin.left
-        }px, ${
-          dimensions.margin.top
-        }px)`)
-
-const background = bounds.append("g")
-
-// init static elements
-bounds.append("g")
-    .attr("class", "bins")
-bounds.append("line")
-    .attr("class", "mean")
-bounds.append("g")
-    .attr("class", "x-axis")
-    .style("transform", `translateY(${
-          dimensions.boundedHeight
-        }px)`)
-    .append("text")
-    .attr("class", "x-axis-label")
-
-// 4. Create scales
-
-const xScale = d3.scaleLinear()
-    .domain(d3.extent(dataset, diffAccessor))
-    .range([0, dimensions.boundedWidth])
-    .nice()
-
-const binsGenerator = d3.bin()
-    .domain(xScale.domain())
-    .value(diffAccessor)
-    .thresholds(30)
-
-const bins = binsGenerator(dataset)
-
-const yScale = d3.scaleLinear()
-    .domain([0, d3.max(bins, yAccessor)])
-    .range([dimensions.boundedHeight, 0])
-    .nice()
-
-// 5. Draw data
-
-const barPadding = 1.5
-
-let binGroups = bounds.select(".bins")
-    .selectAll(".bin")
-    .data(bins)
-
-binGroups.exit()
-    .remove()
-
-const newBinGroups = binGroups.enter().append("g")
-    .attr("class", "bin")
-
-newBinGroups.append("rect")
-
-// update binGroups to include new points
-binGroups = newBinGroups.merge(binGroups)
-
-const barRects = binGroups.select("rect")
-    .attr("x", d => xScale(d.x0) + barPadding)
-    .attr("y", d => yScale(yAccessor(d)))
-    .attr("height", d => (
-        dimensions.boundedHeight - yScale(yAccessor(d))
-    ))
-    .attr("width", d => d3.max([
-        0,
-        xScale(d.x1) - xScale(d.x0) - barPadding
-    ]))
-
-const mean = d3.mean(dataset, diffAccessor)
-
-const meanLine = bounds.selectAll(".mean")
-    .attr("x1", xScale(mean))
-    .attr("x2", xScale(mean))
-    .attr("y1", -20)
-    .attr("y2", dimensions.boundedHeight)
-
-const meanLabel = bounds.append("text")
-    .attr("class", "mean-label")
-    .attr("x", xScale(mean))
-    .attr("y", -25)
-    .text("mean")
-
-// 6. Draw peripherals
-
-const xAxisGenerator = d3.axisBottom()
-    .scale(xScale)
-
-const xAxis = bounds.select(".x-axis")
-    .call(xAxisGenerator)
-
-const xAxisLabel = xAxis.select(".x-axis-label")
-    .attr("x", dimensions.boundedWidth / 2)
-    .attr("y", dimensions.margin.bottom - 10)
-    .text("Hours over-estimated")
-
-const backgroundLeft = background.append("rect")
-    .attr("class", "background left-side-background")
-    .attr("y", -20)
-    .attr("width", dimensions.boundedWidth / 2)
-    .attr("height", dimensions.boundedHeight + 20)
-
-const backgroundRight = background.append("rect")
-    .attr("class", "background right-side-background")
-    .attr("x", dimensions.boundedWidth / 2 + 1)
-    .attr("y", -20)
-    .attr("width", dimensions.boundedWidth / 2 - 1)
-    .attr("height", dimensions.boundedHeight + 20)
-
-const leftSideLabel = background.append("text")
-    .attr("class", "label left-side-label")
-    .attr("x", 10)
-    .attr("y", 0)
-    .text("Under-estimated")
-
-const rightSideLabel = background.append("text")
-    .attr("class", "label right-side-label")
-    .attr("x", dimensions.boundedWidth - 10)
-    .attr("y", 0)
-    .text("Over-estimated")
-
-// 7. Set up interactions
-
-
-
-drawBars()
+req.send()

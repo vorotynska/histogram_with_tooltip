@@ -1,0 +1,61 @@
+@import url('https://fonts.googleapis.com/css2?family=Source+Sans+Pro&display=swap');
+
+*{
+    font-family: 'Source Sans Pro', sans-serif;
+}
+
+html{
+    height: 100%
+}
+
+body {
+    background-color: #1C8394;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+}
+
+svg{
+    background-color: #DEEFE7;
+    box-shadow: 3px 5px 15px #193C40;
+    border-radius: 5px;
+    z-index: 3;
+}
+.axis path, .axis line {
+    fill: none;
+    stroke: #333;
+}
+
+
+.axis text { 
+    font: 10px Verdana;
+}
+.bar {
+    stroke: none;
+    fill: #154B52;
+}
+
+
+.bar:hover{
+    fill: #DAFDBA
+}
+
+
+
+#tooltip{
+    z-index: 10;
+      background-color: #B4BEC9;
+    border-radius: 5px;
+    padding: 5px;
+   visibility: hidden;
+   text-align: center;
+   vertical-align: middle;
+   position: absolute;
+   color: #A62B1F;
+}
+  #title{
+    color: #000B0D;
+  }
+
